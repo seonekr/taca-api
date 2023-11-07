@@ -7,7 +7,7 @@ const bcrypt = require("bcrypt");
 const saltRounds = 10;
 var jwt = require("jsonwebtoken");
 const secret = "Humascot-TACA2023";
-require('dotenv').config()
+require("dotenv").config();
 
 app.use(cors());
 
@@ -21,57 +21,67 @@ const connection = mysql.createConnection({
 });
 
 // ==================== Admin Management =====================
+
 app.post("/admin/register", jsonParser, (req, res) => {
-  bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
-    const sql =
-      "INSERT INTO admins (email, tel, fname, lname, department, password) VALUES (?)";
-    const values = [
-      req.body.email,
-      req.body.tel,
-      req.body.fname,
-      req.body.lname,
-      req.body.department,
-      hash,
-    ];
-    connection.query(sql, [values], (err, result) => {
+  const email = req.body.email;
+  const urole = "Admin";
+  const password = req.body.password;
+  var user_id = 0;
+  const fname = req.body.fname;
+  const lname = req.body.lname;
+  const tel = req.body.tel;
+  const department = req.body.department;
+  const gender = req.body.gender;
+
+  bcrypt.hash(password, saltRounds, (err, hash) => {
+    // For add users
+    const sql1 = "INSERT INTO users (email, urole, password) VALUES (?)";
+    const values1 = [email, urole, hash];
+
+    connection.query(sql1, [values1], (err, result) => {
       if (err) {
-        res.json({ Status: "Error", Error: "Errer in running sql" });
+        res.json({
+          Status: "Error",
+          Error: "Errer in running sql when adding users",
+        });
         return;
       } else {
-        res.json({ Status: "Success" });
-      }
-    });
-  });
-});
-
-app.post("/admin", jsonParser, (req, res) => {
-  const sql = "SELECT * FROM admins WHERE email = ?";
-  connection.query(sql, [req.body.email], (err, result) => {
-    if (err) {
-      return res.json({ Status: "Error", Error: "Errer in running sql" });
-    }
-    if (result.length > 0) {
-      bcrypt.compare(
-        req.body.password.toString(),
-        result[0].password,
-        (err, response) => {
-          if (err) return res.json({ Error: "Password error" });
-          if (response) {
-            const token = jwt.sign({id: result[0].id, email: result[0].email }, secret, {
-              expiresIn: "1d",
-            });
-            return res.json({ Status: "Success", Token: token, id: result[0].id});
-          } else {
+        // For select last user id
+        const sql = "SELECT * FROM users ORDER BY id DESC LIMIT 1";
+        connection.query(sql, (err, result) => {
+          if (err)
             return res.json({
               Status: "Error",
-              Error: "Wrong Password",
+              Error: "Errer in running query",
             });
-          }
-        }
-      );
-    } else {
-      return res.json({ Status: "Error", Error: "Wrong Email or Password" });
-    }
+          user_id = result[0].id;
+
+          // For add admins
+          const sql2 =
+            "INSERT INTO admins (u_id, email, fname, lname, tel, department, gender) VALUES (?)";
+          const values2 = [
+            user_id,
+            email,
+            fname,
+            lname,
+            tel,
+            department,
+            gender,
+          ];
+          connection.query(sql2, [values2], (err, result) => {
+            if (err) {
+              res.json({
+                Status: "Error",
+                Error: "Errer in running sql when adding admin",
+              });
+              return;
+            } else {
+              res.json({ Status: "Success" });
+            }
+          });
+        });
+      }
+    });
   });
 });
 
@@ -91,6 +101,17 @@ app.get("/allAdmins", (req, res) => {
     if (err)
       return res.json({ Status: "Error", Error: "Errer in running query" });
     return res.json({ Status: "Success", Result: result });
+  });
+});
+
+// ============== Test API ===============
+app.get("/lastUser", (req, res) => {
+  const sql = "SELECT * FROM users ORDER BY id DESC LIMIT 1";
+  connection.query(sql, (err, result) => {
+    if (err)
+      return res.json({ Status: "Error", Error: "Errer in running query" });
+
+    return res.json({ Status: "Success", Result: result[0].id });
   });
 });
 
@@ -154,45 +175,95 @@ app.get("/countAdmin", (req, res) => {
 // ==================== Customer Management =====================
 
 app.post("/register", jsonParser, (req, res) => {
-  bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
-    const sql =
-      "INSERT INTO customers (email, tel, fname, lname, password) VALUES (?)";
-    const values = [
-      req.body.email,
-      req.body.tel,
-      req.body.fname,
-      req.body.lname,
-      hash,
-    ];
-    connection.query(sql, [values], (err, result) => {
+  const email = req.body.email;
+  const urole = "Customer";
+  const password = req.body.password;
+  var user_id = 0;
+  const fname = req.body.fname;
+  const lname = req.body.lname;
+  const tel = req.body.tel;
+  const gender = req.body.gender;
+
+  bcrypt.hash(password, saltRounds, (err, hash) => {
+    // For add users
+    const sql1 = "INSERT INTO users (email, urole, password) VALUES (?)";
+    const values1 = [email, urole, hash];
+
+    connection.query(sql1, [values1], (err, result) => {
       if (err) {
-        return res.json({
+        res.json({
           Status: "Error",
-          Error: "Errer in running sql",
+          Error: "Errer in running sql when adding users",
+        });
+        return;
+      } else {
+        // For select last user id
+        const sql = "SELECT * FROM users ORDER BY id DESC LIMIT 1";
+        connection.query(sql, (err, result) => {
+          if (err)
+            return res.json({
+              Status: "Error",
+              Error: "Errer in running query",
+            });
+          user_id = result[0].id;
+
+          // For add Customer
+          const sql2 =
+            "INSERT INTO customers (u_id, email, fname, lname, tel, gender) VALUES (?)";
+          const values2 = [user_id, email, fname, lname, tel, gender];
+          connection.query(sql2, [values2], (err, result) => {
+            if (err) {
+              res.json({
+                Status: "Error",
+                Error: "Errer in running sql when adding admin",
+              });
+              return;
+            } else {
+              res.json({ Status: "Success" });
+            }
+          });
         });
       }
-      return res.json({ Status: "Success" });
     });
   });
 });
 
 app.post("/login", jsonParser, (req, res) => {
-  const sql = "SELECT * FROM customers WHERE email = ?";
-  connection.query(sql, [req.body.email], (err, result) => {
+  const email = req.body.email;
+  const password = req.body.password;
+  const sql = "SELECT * FROM users WHERE email = ?";
+  connection.query(sql, [email], (err, result) => {
     if (err) {
       return res.json({ Status: "Error", Error: "Errer in running sql" });
     }
     if (result.length > 0) {
       bcrypt.compare(
-        req.body.password.toString(),
+        password.toString(),
         result[0].password,
         (err, response) => {
           if (err) return res.json({ Error: "Password error" });
           if (response) {
-            const token = jwt.sign({ email: result[0].email }, secret, {
-              expiresIn: "1d",
-            });
-            return res.json({ Status: "Success", Token: token, id: result[0].id});
+            if (result[0].urole === "Admin") {
+              const token = jwt.sign({ email: result[0].email }, secret, {
+                expiresIn: "1d",
+              });
+              return res.json({
+                Status: "Success",
+                urole: "Admin logged in",
+                Token: token,
+                id: result[0].id,
+              });
+            } else {
+              const token = jwt.sign({ email: result[0].email }, secret, {
+                expiresIn: "1d",
+              });
+              return res.json({
+                Status: "Success",
+                urole: "Customer logged in",
+                Token: token,
+                id: result[0].id,
+              });
+            }
           } else {
             return res.json({
               Status: "Error",
@@ -504,7 +575,6 @@ app.get("/countProduct", (req, res) => {
     return res.json({ result });
   });
 });
-
 
 app.listen(5000, () => {
   console.log("Web server listening on port 5000");
