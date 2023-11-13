@@ -26,7 +26,7 @@ app.post("/admin/register", jsonParser, (req, res) => {
   const email = req.body.email;
   const urole = "Admin";
   const password = req.body.password;
-  var user_id = 0;
+  var reg_id = "";
   const fname = req.body.fname;
   const lname = req.body.lname;
   const tel = req.body.tel;
@@ -34,33 +34,33 @@ app.post("/admin/register", jsonParser, (req, res) => {
   const gender = req.body.gender;
 
   bcrypt.hash(password, saltRounds, (err, hash) => {
-    // For add users
-    const sql1 = "INSERT INTO users (email, urole, password) VALUES (?)";
+    // For add register
+    const sql1 = "INSERT INTO register (email, urole, password) VALUES (?)";
     const values1 = [email, urole, hash];
 
     connection.query(sql1, [values1], (err, result) => {
       if (err) {
         res.json({
           Status: "Error",
-          Error: "Errer in running sql when adding users",
+          Error: "Errer in running sql when adding register",
         });
         return;
       } else {
         // For select last user id
-        const sql = "SELECT * FROM users ORDER BY id DESC LIMIT 1";
+        const sql = "SELECT * FROM register ORDER BY id DESC LIMIT 1";
         connection.query(sql, (err, result) => {
           if (err)
             return res.json({
               Status: "Error",
               Error: "Errer in running query",
             });
-          user_id = result[0].id;
+          reg_id = result[0].id;
 
           // For add admins
           const sql2 =
-            "INSERT INTO admins (u_id, email, fname, lname, tel, department, gender) VALUES (?)";
+            "INSERT INTO admins (reg_id, email, fname, lname, tel, department, gender) VALUES (?)";
           const values2 = [
-            user_id,
+            reg_id,
             email,
             fname,
             lname,
@@ -73,6 +73,17 @@ app.post("/admin/register", jsonParser, (req, res) => {
               res.json({
                 Status: "Error",
                 Error: "Errer in running sql when adding admin",
+              });
+              
+              // For delete the last register id when customers adding wrong
+              const sql3 = "DELETE FROM register WHERE id = ?";
+
+              connection.query(sql3, [reg_id], (err, result) => {
+                if (err)
+                  return res.json({
+                    Status: "Error",
+                    Error: "Errer in running sql",
+                  });
               });
               return;
             } else {
@@ -178,44 +189,55 @@ app.post("/register", jsonParser, (req, res) => {
   const email = req.body.email;
   const urole = "Customer";
   const password = req.body.password;
-  var user_id = 0;
+  var reg_id = "";
   const fname = req.body.fname;
   const lname = req.body.lname;
   const tel = req.body.tel;
   const gender = req.body.gender;
 
   bcrypt.hash(password, saltRounds, (err, hash) => {
-    // For add users
-    const sql1 = "INSERT INTO users (email, urole, password) VALUES (?)";
+    // For add register
+    const sql1 = "INSERT INTO register (email, urole, password) VALUES (?)";
     const values1 = [email, urole, hash];
 
     connection.query(sql1, [values1], (err, result) => {
       if (err) {
         res.json({
           Status: "Error",
-          Error: "Errer in running sql when adding users",
+          Error: "Errer in running sql when adding register",
         });
         return;
       } else {
         // For select last user id
-        const sql = "SELECT * FROM users ORDER BY id DESC LIMIT 1";
+        const sql = "SELECT * FROM register ORDER BY id DESC LIMIT 1";
         connection.query(sql, (err, result) => {
           if (err)
             return res.json({
               Status: "Error",
               Error: "Errer in running query",
             });
-          user_id = result[0].id;
+          reg_id = result[0].id;
 
           // For add Customer
           const sql2 =
-            "INSERT INTO customers (u_id, email, fname, lname, tel, gender) VALUES (?)";
-          const values2 = [user_id, email, fname, lname, tel, gender];
+            "INSERT INTO customers (reg_id, email, fname, lname, tel, gender) VALUES (?)";
+          const values2 = [reg_id, email, fname, lname, tel, gender];
           connection.query(sql2, [values2], (err, result) => {
             if (err) {
               res.json({
                 Status: "Error",
                 Error: "Errer in running sql when adding admin",
+              });
+
+              // For delete the last register id when customers adding wrong
+              const sql3 = "DELETE FROM register WHERE id = ?";
+
+              connection.query(sql3, [reg_id], (err, result) => {
+                if (err)
+                  return res.json({
+                    Status: "Error",
+                    Error: "Errer in running sql",
+                  });
               });
               return;
             } else {
@@ -231,7 +253,7 @@ app.post("/register", jsonParser, (req, res) => {
 app.post("/login", jsonParser, (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
-  const sql = "SELECT * FROM users WHERE email = ?";
+  const sql = "SELECT * FROM register WHERE email = ?";
   connection.query(sql, [email], (err, result) => {
     if (err) {
       return res.json({ Status: "Error", Error: "Errer in running sql" });
@@ -250,8 +272,7 @@ app.post("/login", jsonParser, (req, res) => {
               return res.json({
                 Status: "Success",
                 urole: "Admin logged in",
-                Token: token,
-                id: result[0].id,
+                token: token,
               });
             } else {
               const token = jwt.sign({ email: result[0].email }, secret, {
@@ -260,8 +281,7 @@ app.post("/login", jsonParser, (req, res) => {
               return res.json({
                 Status: "Success",
                 urole: "Customer logged in",
-                Token: token,
-                id: result[0].id,
+                token: token,
               });
             }
           } else {
@@ -289,7 +309,7 @@ app.get("/allCustomers", (req, res) => {
 
 app.get("/getCustomer/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "SELECT * FROM customers WHERE id = ?";
+  const sql = "SELECT * FROM register WHERE id = ?";
   connection.query(sql, [id], (err, result) => {
     if (err)
       return res.json({ Status: "Error", Error: "Errer in running sql" });
