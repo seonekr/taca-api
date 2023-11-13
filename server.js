@@ -266,7 +266,7 @@ app.post("/login", jsonParser, (req, res) => {
           if (err) return res.json({ Error: "Password error" });
           if (response) {
             if (result[0].urole === "Admin") {
-              const token = jwt.sign({ email: result[0].email }, secret, {
+              const token = jwt.sign({ id: result[0].id, email: result[0].email }, secret, {
                 expiresIn: "1d",
               });
               return res.json({
@@ -275,7 +275,7 @@ app.post("/login", jsonParser, (req, res) => {
                 token: token,
               });
             } else {
-              const token = jwt.sign({ email: result[0].email }, secret, {
+              const token = jwt.sign({ id: result[0].id, email: result[0].email }, secret, {
                 expiresIn: "1d",
               });
               return res.json({
