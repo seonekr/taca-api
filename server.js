@@ -271,7 +271,7 @@ app.post("/login", jsonParser, (req, res) => {
               });
               return res.json({
                 Status: "Success",
-                urole: "Admin logged in",
+                urole: "Admin",
                 token: token,
               });
             } else {
@@ -280,7 +280,7 @@ app.post("/login", jsonParser, (req, res) => {
               });
               return res.json({
                 Status: "Success",
-                urole: "Customer logged in",
+                urole: "Customer",
                 token: token,
               });
             }
@@ -309,7 +309,7 @@ app.get("/allCustomers", (req, res) => {
 
 app.get("/getCustomer/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "SELECT * FROM register WHERE id = ?";
+  const sql = "SELECT * FROM customers WHERE reg_id = ?";
   connection.query(sql, [id], (err, result) => {
     if (err)
       return res.json({ Status: "Error", Error: "Errer in running sql" });
