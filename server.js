@@ -128,7 +128,7 @@ app.get("/lastUser", (req, res) => {
 
 app.get("/getAdmin/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "SELECT * FROM admins WHERE id = ?";
+  const sql = "SELECT * FROM admins WHERE reg_id = ?";
   connection.query(sql, [id], (err, result) => {
     if (err)
       return res.json({ Status: "Error", Error: "Errer in running query" });
