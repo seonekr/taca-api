@@ -3,7 +3,9 @@ var cors = require("cors");
 var app = express();
 var bodyParser = require("body-parser");
 var jsonParser = bodyParser.json();
+const multer = require("multer");
 const bcrypt = require("bcrypt");
+const path = require('path');
 const saltRounds = 10;
 var jwt = require("jsonwebtoken");
 const secret = "Humascot-TACA2023";
@@ -20,236 +22,38 @@ const connection = mysql.createConnection({
   database: process.env.DB_DATABASE,
 });
 
-// ==================== Admin Management =====================
-
-app.post("/admin/register", jsonParser, (req, res) => {
-  const email = req.body.email;
-  const urole = "Admin";
-  const password = req.body.password;
-  var reg_id = "";
-  const fname = req.body.fname;
-  const lname = req.body.lname;
-  const tel = req.body.tel;
-  const department = req.body.department;
-  const gender = req.body.gender;
-
-  bcrypt.hash(password, saltRounds, (err, hash) => {
-    // For add register
-    const sql1 = "INSERT INTO register (email, urole, password) VALUES (?)";
-    const values1 = [email, urole, hash];
-
-    connection.query(sql1, [values1], (err, result) => {
-      if (err) {
-        res.json({
-          Status: "Error",
-          Error: "Errer in running sql when adding register",
-        });
-        return;
-      } else {
-        // For select last user id
-        const sql = "SELECT * FROM register ORDER BY id DESC LIMIT 1";
-        connection.query(sql, (err, result) => {
-          if (err)
-            return res.json({
-              Status: "Error",
-              Error: "Errer in running query",
-            });
-          reg_id = result[0].id;
-
-          // For add admins
-          const sql2 =
-            "INSERT INTO admins (reg_id, email, fname, lname, tel, department, gender) VALUES (?)";
-          const values2 = [
-            reg_id,
-            email,
-            fname,
-            lname,
-            tel,
-            department,
-            gender,
-          ];
-          connection.query(sql2, [values2], (err, result) => {
-            if (err) {
-              res.json({
-                Status: "Error",
-                Error: "Errer in running sql when adding admin",
-              });
-              
-              // For delete the last register id when customers adding wrong
-              const sql3 = "DELETE FROM register WHERE id = ?";
-
-              connection.query(sql3, [reg_id], (err, result) => {
-                if (err)
-                  return res.json({
-                    Status: "Error",
-                    Error: "Errer in running sql",
-                  });
-              });
-              return;
-            } else {
-              res.json({ Status: "Success" });
-            }
-          });
-        });
-      }
-    });
-  });
-});
-
-app.post("/authen", jsonParser, (req, res) => {
-  try {
-    const token = req.headers.authorization.split(" ")[1];
-    var decoded = jwt.verify(token, secret);
-    res.json({ Status: "Success", decoded });
-  } catch (err) {
-    res.json({ Status: "Error", Error: err.message });
+// Connect to the database
+connection.connect((err) => {
+  if (err) {
+    console.error('Error connecting to MySQL database:', err);
+  } else {
+    console.log('Connected to MySQL database');
   }
 });
 
-app.get("/allAdmins", (req, res) => {
-  const sql = "SELECT * FROM admins";
-  connection.query(sql, (err, result) => {
-    if (err)
-      return res.json({ Status: "Error", Error: "Errer in running query" });
-    return res.json({ Status: "Success", Result: result });
-  });
+// Middleware to handle file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, '../public/images');
+  },
+  filename: (req, file, cb) => {
+    const fileName = `${Date.now()}-${file.originalname}`;
+    cb(null, fileName);
+  },
 });
 
-// ============== Test API ===============
-app.get("/lastUser", (req, res) => {
-  const sql = "SELECT * FROM users ORDER BY id DESC LIMIT 1";
-  connection.query(sql, (err, result) => {
-    if (err)
-      return res.json({ Status: "Error", Error: "Errer in running query" });
-
-    return res.json({ Status: "Success", Result: result[0].id });
-  });
+const upload = multer({
+  storage: storage,
 });
 
-app.get("/getAdmin/:id", (req, res) => {
-  const id = req.params.id;
-  const sql = "SELECT * FROM admins WHERE reg_id = ?";
-  connection.query(sql, [id], (err, result) => {
-    if (err)
-      return res.json({ Status: "Error", Error: "Errer in running query" });
-    return res.json({ Status: "Success", Result: result });
-  });
-});
+// Middleware to serve uploaded files statically
+app.use('../public/images', express.static(path.join(__dirname, '../public/images')));
 
-app.put("/updateAdmin/:id", jsonParser, (req, res) => {
-  const id = req.params.id;
+// Middleware to parse JSON and urlencoded request bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-  bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
-    const sql =
-      "UPDATE admins SET `email` = ?, `tel` = ?, `fname` = ?, `lname` = ?, `department` = ?, `password` = ? WHERE id = ?";
-
-    const values = [
-      req.body.email,
-      req.body.tel,
-      req.body.fname,
-      req.body.lname,
-      req.body.department,
-      hash,
-    ];
-
-    connection.query(sql, [...values, id], (err, data) => {
-      if (err) res.json({ Status: "Error", Error: "Errer in running sql" });
-      return res.json({ Status: "Success", data });
-    });
-  });
-});
-
-app.get("/deleteAdmin/:id", (req, res) => {
-  const id = req.params.id;
-  const sql = "DELETE FROM admins WHERE id = ?";
-
-  connection.query(sql, [id], (err, result) => {
-    if (err)
-      return res.json({
-        Status: "Error",
-        Error: "Errer in running sql",
-      });
-    return res.json({ Status: "Success" });
-  });
-});
-
-app.get("/countAdmin", (req, res) => {
-  const sql = "SELECT count(id) as admins FROM admins";
-
-  connection.query(sql, (err, result) => {
-    if (err)
-      return res.json({ Status: "Error", Error: "Errer in running sql" });
-    return res.json({ result });
-  });
-});
-
-// ==================== Customer Management =====================
-
-app.post("/register", jsonParser, (req, res) => {
-  const email = req.body.email;
-  const urole = "Customer";
-  const password = req.body.password;
-  var reg_id = "";
-  const fname = req.body.fname;
-  const lname = req.body.lname;
-  const tel = req.body.tel;
-  const gender = req.body.gender;
-
-  bcrypt.hash(password, saltRounds, (err, hash) => {
-    // For add register
-    const sql1 = "INSERT INTO register (email, urole, password) VALUES (?)";
-    const values1 = [email, urole, hash];
-
-    connection.query(sql1, [values1], (err, result) => {
-      if (err) {
-        res.json({
-          Status: "Error",
-          Error: "Errer in running sql when adding register",
-        });
-        return;
-      } else {
-        // For select last user id
-        const sql = "SELECT * FROM register ORDER BY id DESC LIMIT 1";
-        connection.query(sql, (err, result) => {
-          if (err)
-            return res.json({
-              Status: "Error",
-              Error: "Errer in running query",
-            });
-          reg_id = result[0].id;
-
-          // For add Customer
-          const sql2 =
-            "INSERT INTO customers (reg_id, email, fname, lname, tel, gender) VALUES (?)";
-          const values2 = [reg_id, email, fname, lname, tel, gender];
-          connection.query(sql2, [values2], (err, result) => {
-            if (err) {
-              res.json({
-                Status: "Error",
-                Error: "Errer in running sql when adding admin",
-              });
-
-              // For delete the last register id when customers adding wrong
-              const sql3 = "DELETE FROM register WHERE id = ?";
-
-              connection.query(sql3, [reg_id], (err, result) => {
-                if (err)
-                  return res.json({
-                    Status: "Error",
-                    Error: "Errer in running sql",
-                  });
-              });
-              return;
-            } else {
-              res.json({ Status: "Success" });
-            }
-          });
-        });
-      }
-    });
-  });
-});
-
+// ==================== Authentication and Authenticate user =====================
 app.post("/login", jsonParser, (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
@@ -266,21 +70,31 @@ app.post("/login", jsonParser, (req, res) => {
           if (err) return res.json({ Error: "Password error" });
           if (response) {
             if (result[0].urole === "Admin") {
-              const token = jwt.sign({ id: result[0].id, email: result[0].email }, secret, {
-                expiresIn: "1d",
-              });
+              const token = jwt.sign(
+                { email: result[0].email, urole: "Admin" },
+                secret,
+                {
+                  expiresIn: "1d",
+                }
+              );
               return res.json({
                 Status: "Success",
                 urole: "Admin",
+                userID: result[0].id,
                 token: token,
               });
             } else {
-              const token = jwt.sign({ id: result[0].id, email: result[0].email }, secret, {
-                expiresIn: "1d",
-              });
+              const token = jwt.sign(
+                { email: result[0].email, urole: "Customer" },
+                secret,
+                {
+                  expiresIn: "1d",
+                }
+              );
               return res.json({
                 Status: "Success",
                 urole: "Customer",
+                userID: result[0].id,
                 token: token,
               });
             }
@@ -298,12 +112,114 @@ app.post("/login", jsonParser, (req, res) => {
   });
 });
 
+app.post("/authen", jsonParser, (req, res) => {
+  try {
+    const token = req.headers.authorization.split(" ")[1];
+    var decoded = jwt.verify(token, secret);
+    res.json({ Status: "Success", decoded });
+  } catch (err) {
+    res.json({ Status: "Error", Error: err.message });
+  }
+});
+
+// ==================== Customer Management =====================
+app.post("/register", jsonParser, (req, res) => {
+  const email = req.body.email;
+  const urole = "Customer";
+  const password = req.body.password;
+  const confirmPassword = req.body.confirmPassword;
+  var reg_id = "";
+  const fname = req.body.fname;
+  const lname = req.body.lname;
+  const tel = req.body.tel;
+  const profile_image = "profile.png";
+
+  if (
+    fname !== "" &&
+    lname !== "" &&
+    email !== "" &&
+    tel !== "" &&
+    password !== "" &&
+    confirmPassword !== ""
+  ) {
+    if (password === confirmPassword) {
+      bcrypt.hash(password, saltRounds, (err, hash) => {
+        const sql1 =
+          "INSERT INTO register (email, tel, urole, password) VALUES (?)";
+        const values1 = [email, tel, urole, hash];
+
+        connection.query(sql1, [values1], (err, result) => {
+          if (err) {
+            res.json({
+              Status: "Error",
+              Error: err.sqlMessage,
+            });
+            return;
+          } else {
+            // For select last user id
+            const sql = "SELECT * FROM register ORDER BY id DESC LIMIT 1";
+            connection.query(sql, (err, result) => {
+              if (err)
+                return res.json({
+                  Status: "Error",
+                  Error: err.sqlMessage,
+                });
+              reg_id = result[0].id;
+
+              // For add Customer
+              const sql2 =
+                "INSERT INTO customers (reg_id, email, fname, lname, tel, profile_image) VALUES (?)";
+              const values2 = [reg_id, email, fname, lname, tel, profile_image];
+              connection.query(sql2, [values2], (err, result) => {
+                if (err) {
+                  res.json({
+                    Status: "Error",
+                    Error: err,
+                  });
+
+                  // For delete the last register id when customers adding wrong
+                  const sql3 = "DELETE FROM register WHERE id = ?";
+
+                  connection.query(sql3, [reg_id], (err, result) => {
+                    if (err)
+                      return res.json({
+                        Status: "Error",
+                        Error: err.sqlMessage,
+                      });
+                  });
+                  return;
+                } else {
+                  res.json({ Status: "Success" });
+                }
+              });
+            });
+          }
+        });
+      });
+    } else {
+      res.json({
+        Status: "Error",
+        Error: "The Password doesn't match!",
+      });
+      return;
+    }
+  } else {
+    res.json({
+      Status: "Error",
+      Error: "Please fill all the blank!",
+    });
+    return;
+  }
+});
+
 app.get("/allCustomers", (req, res) => {
   const sql = "SELECT * FROM customers";
   connection.query(sql, (err, result) => {
     if (err)
       return res.json({ Status: "Error", Error: "Errer in running sql" });
-    return res.json({ Status: "Success", Result: result });
+    else {
+      return res.json({ Status: "Success", Result: result });
+    }
   });
 });
 
@@ -341,7 +257,7 @@ app.put("/updateCustomer/:id", jsonParser, (req, res) => {
 
 app.get("/deleteCustomer/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "DELETE FROM customers WHERE id = ?";
+  const sql = "DELETE FROM register WHERE id = ?";
 
   connection.query(sql, [id], (err, result) => {
     if (err)
@@ -363,63 +279,144 @@ app.get("/countCustomer", (req, res) => {
   });
 });
 
-// ==================== Category Management =====================
+// ==================== Admin Management =====================
+app.post("/admin/register", jsonParser, (req, res) => {
+  const email = req.body.email;
+  const urole = "Admin";
+  const password = email;
+  var reg_id = "";
+  const fname = req.body.fname;
+  const lname = req.body.lname;
+  const tel = req.body.tel;
+  const profile_image = "profile.png";
 
-app.post("/addCategory", jsonParser, (req, res) => {
-  const sql = "INSERT INTO categories (name) VALUES (?)";
-  const values = [req.body.name];
-  connection.query(sql, [values], (err, result) => {
-    if (err) {
-      return res.json({
-        Status: "Error",
-        Error: "Errer in running sql",
+  if (fname !== "" && lname !== "" && email !== "" && tel !== "") {
+    bcrypt.hash(password, saltRounds, (err, hash) => {
+      // For add register
+      const sql1 =
+        "INSERT INTO register (email, tel, urole, password) VALUES (?)";
+      const values1 = [email, tel, urole, hash];
+
+      connection.query(sql1, [values1], (err, result) => {
+        if (err) {
+          res.json({
+            Status: "Error",
+            Error: err,
+          });
+          return;
+        } else {
+          // For select last user id
+          const sql = "SELECT * FROM register ORDER BY id DESC LIMIT 1";
+          connection.query(sql, (err, result) => {
+            if (err)
+              return res.json({
+                Status: "Error",
+                Error: err,
+              });
+            reg_id = result[0].id;
+
+            // For add admins
+            const sql2 =
+              "INSERT INTO admins (reg_id, email, fname, lname, tel, profile_image) VALUES (?)";
+            const values2 = [reg_id, email, fname, lname, tel, profile_image];
+            connection.query(sql2, [values2], (err, result) => {
+              if (err) {
+                res.json({
+                  Status: "Error",
+                  Error: err,
+                });
+
+                // For delete the last register id when customers adding wrong
+                const sql3 = "DELETE FROM register WHERE id = ?";
+
+                connection.query(sql3, [reg_id], (err, result) => {
+                  if (err)
+                    return res.json({
+                      Status: "Error",
+                      Error: err,
+                    });
+                });
+                return;
+              } else {
+                res.json({ Status: "Success" });
+              }
+            });
+          });
+        }
       });
-    }
-    return res.json({ Status: "Success" });
-  });
+    });
+  } else {
+    res.json({
+      Status: "Error",
+      Error: "Please fill all the blank!",
+    });
+    return;
+  }
 });
 
-app.get("/allCategories", (req, res) => {
-  const sql = "SELECT * FROM categories";
+app.get("/allAdmins", (req, res) => {
+  const sql = "SELECT * FROM admins";
   connection.query(sql, (err, result) => {
     if (err)
-      return res.json({
-        Status: "Error",
-        Error: "Errer in running sql",
-      });
+      return res.json({ Status: "Error", Error: "Errer in running query" });
     return res.json({ Status: "Success", Result: result });
   });
 });
 
-app.get("/getCategory/:id", (req, res) => {
+app.get("/getAdmin/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "SELECT * FROM categories WHERE id = ?";
+  const sql = "SELECT * FROM admins WHERE reg_id = ?";
   connection.query(sql, [id], (err, result) => {
     if (err)
-      return res.json({
-        Status: "Error",
-        Error: "Errer in running sql",
-      });
+      return res.json({ Status: "Error", Error: "Errer in running query" });
     return res.json({ Status: "Success", Result: result });
   });
 });
 
-app.put("/updateCategory/:id", jsonParser, (req, res) => {
+app.put("/updateAdmin/:id", jsonParser, (req, res) => {
   const id = req.params.id;
+  const email = req.body.email;
+  const tel = req.body.tel;
+  const fname = req.body.fname;
+  const lname = req.body.lname;
+  // const profile_image = req.body.profile_image;
+  const password = req.body.password;
 
-  const sql = "UPDATE categories SET `name` = ? WHERE id = ?";
+  bcrypt.hash(password, saltRounds, (err, hash) => {
+    const sql1 =
+      "UPDATE register SET `email` = ?, `tel` = ?, `password` = ? WHERE id = ?";
+    const sql2 =
+      "UPDATE admins SET `email` = ?, `tel` = ?, `fname` = ?, `lname` = ? WHERE reg_id = ?";
 
-  const values = [req.body.name];
+    const values1 = [email, tel, hash];
+    const values2 = [email, tel, fname, lname];
 
-  connection.query(sql, [...values, id], (err, data) => {
-    if (err) res.json({ Status: "Error", Error: "Errer in running sql" });
-    return res.json({ Status: "Success", data });
+    connection.query(sql1, [...values1, id], (err, data) => {
+      if (err) {
+        res.json({ Status: "Error", Error: err });
+        return;
+      } else {
+        // For add admins
+        connection.query(sql2, [...values2, id], (err, data) => {
+          if (err) {
+            res.json({
+              Status: "Error",
+              Error: err,
+            });
+            return;
+          } else {
+            res.json({ Status: "Success" });
+            return;
+          }
+        });
+      }
+    });
   });
 });
 
-app.get("/deleteCategory/:id", (req, res) => {
+app.get("/deleteAdmin/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "DELETE FROM categories WHERE id = ?";
+  const sql = "DELETE FROM register WHERE id = ?";
 
   connection.query(sql, [id], (err, result) => {
     if (err)
@@ -431,8 +428,8 @@ app.get("/deleteCategory/:id", (req, res) => {
   });
 });
 
-app.get("/countCategory", (req, res) => {
-  const sql = "SELECT count(id) as category FROM categories";
+app.get("/countAdmin", (req, res) => {
+  const sql = "SELECT count(id) as admins FROM admins";
 
   connection.query(sql, (err, result) => {
     if (err)
@@ -442,37 +439,83 @@ app.get("/countCategory", (req, res) => {
 });
 
 // ==================== Product Management =====================
-
-app.post("/addProduct", jsonParser, (req, res) => {
+app.post("/addProduct2", upload.single("image"), jsonParser, (req, res) => {
   const sql =
-    "INSERT INTO products (cat_id, name, price, size, color, descriptions, image) VALUES (?)";
+    "INSERT INTO products (category, name, price, color, description, is_popular) VALUES (?)";
   const values = [
-    req.body.cat_id,
+    req.body.category,
     req.body.name,
     req.body.price,
-    req.body.size,
     req.body.color,
-    req.body.descriptions,
-    req.body.image,
+    req.body.description,
+    req.body.is_popular,
+    // req.file.filename,
+    // req.body.gallery,
   ];
   connection.query(sql, [values], (err, result) => {
     if (err) {
       return res.json({
         Status: "Error",
-        Error: "Errer in running sql",
+        Error: err,
       });
     }
     return res.json({ Status: "Success" });
   });
 });
 
+// Add product
+app.post(
+  "/addProduct",
+  upload.fields([
+    { name: "mainImage", maxCount: 1 },
+    { name: "images", maxCount: 5 },
+  ]),
+  (req, res) => {
+    const mainImage =
+      req.files && req.files["mainImage"] ? req.files["mainImage"][0] : null;
+    const otherImages =
+      req.files && req.files["images"] ? req.files["images"] : [];
+
+    const price = parseFloat(req.body.price);
+    const colors = req.body.colors ? JSON.parse(req.body.colors) : null;
+
+    const otherImagesPaths = otherImages.map(
+      (image) => `${image.filename}`
+    );
+    const mainImagePath = mainImage ? `${mainImage.filename}` : null;
+
+    const sql = `INSERT INTO products_tb (name, description, price, product_type, main_image_path, colors, other_images_path, popular) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const values = [
+      req.body.name,
+      req.body.description,
+      isNaN(price) ? null : price,
+      req.body.productType,
+      mainImagePath,
+      colors ? JSON.stringify(colors) : null,
+      JSON.stringify(otherImagesPaths),
+      req.body.popular ? 1 : 0, // Convert boolean to 1 or 0 for MySQL
+    ];
+
+    connection.query(sql, values, (err, result) => {
+      if (err) {
+        return res.json({
+          Status: "Error",
+          Error: err,
+        });
+      }
+      return res.json({ Status: "Success" });
+    });
+  }
+);
+
 app.get("/allProducts", (req, res) => {
-  const sql = "SELECT * FROM products";
+  const sql = "SELECT * FROM products_tb";
   connection.query(sql, (err, result) => {
     if (err)
       return res.json({
         Status: "Error",
-        Error: "Errer in running sql",
+        Error: err,
       });
     return res.json({ Status: "Success", Result: result });
   });
@@ -480,7 +523,7 @@ app.get("/allProducts", (req, res) => {
 
 app.get("/getProduct/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "SELECT * FROM products WHERE id = ?";
+  const sql = "SELECT * FROM products_tb WHERE id = ?";
   connection.query(sql, [id], (err, result) => {
     if (err)
       return res.json({
@@ -495,7 +538,7 @@ app.put("/updateProduct/:id", jsonParser, (req, res) => {
   const id = req.params.id;
 
   const sql =
-    "UPDATE products SET `cat_id` = ?, `name` = ?, `price` = ?, `size` = ?, `color` = ?, `descriptions` = ?, `image` = ? WHERE id = ?";
+    "UPDATE products_tb SET `cat_id` = ?, `name` = ?, `price` = ?, `size` = ?, `color` = ?, `descriptions` = ?, `image` = ? WHERE id = ?";
 
   const values = [
     req.body.cat_id,
@@ -515,7 +558,7 @@ app.put("/updateProduct/:id", jsonParser, (req, res) => {
 
 app.get("/deleteProduct/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "DELETE FROM products WHERE id = ?";
+  const sql = "DELETE FROM products_tb WHERE id = ?";
 
   connection.query(sql, [id], (err, result) => {
     if (err)
@@ -528,12 +571,23 @@ app.get("/deleteProduct/:id", (req, res) => {
 });
 
 app.get("/countProduct", (req, res) => {
-  const sql = "SELECT count(id) as products FROM products";
+  const sql = "SELECT count(id) as products FROM products_tb";
 
   connection.query(sql, (err, result) => {
     if (err)
       return res.json({ Status: "Error", Error: "Errer in running sql" });
     return res.json({ result });
+  });
+});
+
+// ============== Test API ===============
+app.get("/lastUser", (req, res) => {
+  const sql = "SELECT * FROM users ORDER BY id DESC LIMIT 1";
+  connection.query(sql, (err, result) => {
+    if (err)
+      return res.json({ Status: "Error", Error: "Errer in running query" });
+
+    return res.json({ Status: "Success", Result: result[0].id });
   });
 });
 
