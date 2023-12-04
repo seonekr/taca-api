@@ -5,7 +5,7 @@ var bodyParser = require("body-parser");
 var jsonParser = bodyParser.json();
 const multer = require("multer");
 const bcrypt = require("bcrypt");
-const path = require('path');
+const path = require("path");
 const saltRounds = 10;
 var jwt = require("jsonwebtoken");
 const secret = "Humascot-TACA2023";
@@ -25,16 +25,16 @@ const connection = mysql.createConnection({
 // Connect to the database
 connection.connect((err) => {
   if (err) {
-    console.error('Error connecting to MySQL database:', err);
+    console.error("Error connecting to MySQL database:", err);
   } else {
-    console.log('Connected to MySQL database');
+    console.log("Connected to MySQL database");
   }
 });
 
 // Middleware to handle file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, '../public/images');
+    cb(null, "./uploads/images");
   },
   filename: (req, file, cb) => {
     const fileName = `${Date.now()}-${file.originalname}`;
@@ -47,7 +47,10 @@ const upload = multer({
 });
 
 // Middleware to serve uploaded files statically
-app.use('../public/images', express.static(path.join(__dirname, '../public/images')));
+app.use(
+  "/uploads/images",
+  express.static(path.join(__dirname, "/uploads/images"))
+);
 
 // Middleware to parse JSON and urlencoded request bodies
 app.use(express.json());
@@ -439,33 +442,10 @@ app.get("/countAdmin", (req, res) => {
 });
 
 // ==================== Product Management =====================
-app.post("/addProduct2", upload.single("image"), jsonParser, (req, res) => {
-  const sql =
-    "INSERT INTO products (category, name, price, color, description, is_popular) VALUES (?)";
-  const values = [
-    req.body.category,
-    req.body.name,
-    req.body.price,
-    req.body.color,
-    req.body.description,
-    req.body.is_popular,
-    // req.file.filename,
-    // req.body.gallery,
-  ];
-  connection.query(sql, [values], (err, result) => {
-    if (err) {
-      return res.json({
-        Status: "Error",
-        Error: err,
-      });
-    }
-    return res.json({ Status: "Success" });
-  });
-});
 
-// Add product
+// The old one of Add product
 app.post(
-  "/addProduct",
+  "/addProductOld",
   upload.fields([
     { name: "mainImage", maxCount: 1 },
     { name: "images", maxCount: 5 },
@@ -479,9 +459,7 @@ app.post(
     const price = parseFloat(req.body.price);
     const colors = req.body.colors ? JSON.parse(req.body.colors) : null;
 
-    const otherImagesPaths = otherImages.map(
-      (image) => `${image.filename}`
-    );
+    const otherImagesPaths = otherImages.map((image) => `${image.filename}`);
     const mainImagePath = mainImage ? `${mainImage.filename}` : null;
 
     const sql = `INSERT INTO products_tb (name, description, price, product_type, main_image_path, colors, other_images_path, popular) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
@@ -509,8 +487,57 @@ app.post(
   }
 );
 
+// The new one of add product
+app.post(
+  "/addProduct",
+  upload.fields([
+    { name: "image", maxCount: 1 },
+    { name: "gallery", maxCount: 5 },
+  ]),
+  (req, res) => {
+    // Check the image file
+    const image =
+      req.files && req.files["image"] ? req.files["image"][0] : null;
+    const images =
+      req.files && req.files["gallery"] ? req.files["gallery"] : [];
+
+    // Prepare datas
+    const name = req.body.name;
+    const description = req.body.description;
+    const price = parseFloat(req.body.price);
+    const category = req.body.category;
+    const colors = req.body.colors ? JSON.parse(req.body.colors) : null;
+    const prod_image = image ? `${image.filename}` : null;
+    const prod_gallery = images.map((e) => `${e.filename}`);
+    const is_popular = req.body.is_popular ? 1 : 0; // Convert boolean to 1 or 0 for MySQL
+
+    const sql = `INSERT INTO products (name, description, price, category, colors, image, gallery, is_popular) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const values = [
+      name,
+      description,
+      price,
+      category,
+      colors ? JSON.stringify(colors) : null,
+      prod_image,
+      prod_gallery ? JSON.stringify(prod_gallery) : null,
+      is_popular,
+    ];
+
+    connection.query(sql, values, (err, result) => {
+      if (err) {
+        return res.json({
+          Status: "Error",
+          Error: err,
+        });
+      }
+      return res.json({ Status: "Success" });
+    });
+  }
+);
+
 app.get("/allProducts", (req, res) => {
-  const sql = "SELECT * FROM products_tb";
+  const sql = "SELECT * FROM products";
   connection.query(sql, (err, result) => {
     if (err)
       return res.json({
@@ -523,7 +550,7 @@ app.get("/allProducts", (req, res) => {
 
 app.get("/getProduct/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "SELECT * FROM products_tb WHERE id = ?";
+  const sql = "SELECT * FROM products WHERE id = ?";
   connection.query(sql, [id], (err, result) => {
     if (err)
       return res.json({
@@ -538,7 +565,7 @@ app.put("/updateProduct/:id", jsonParser, (req, res) => {
   const id = req.params.id;
 
   const sql =
-    "UPDATE products_tb SET `cat_id` = ?, `name` = ?, `price` = ?, `size` = ?, `color` = ?, `descriptions` = ?, `image` = ? WHERE id = ?";
+    "UPDATE products SET `cat_id` = ?, `name` = ?, `price` = ?, `size` = ?, `color` = ?, `descriptions` = ?, `image` = ? WHERE id = ?";
 
   const values = [
     req.body.cat_id,
@@ -558,7 +585,7 @@ app.put("/updateProduct/:id", jsonParser, (req, res) => {
 
 app.get("/deleteProduct/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "DELETE FROM products_tb WHERE id = ?";
+  const sql = "DELETE FROM products WHERE id = ?";
 
   connection.query(sql, [id], (err, result) => {
     if (err)
@@ -594,10 +621,10 @@ app.get("/lastUser", (req, res) => {
 // ==================== Cart Management =====================
 app.post("/addToCart", jsonParser, (req, res) => {
   const sql =
-    "INSERT INTO carts (product_id, customer_id, size, color, quantity) VALUES (?)";
+    "INSERT INTO carts (cust_id, prod_id, size, color, quantity) VALUES (?)";
   const values = [
-    req.body.product_id,
-    req.body.customer_id,
+    req.body.cust_id,
+    req.body.prod_id,
     req.body.size,
     req.body.color,
     req.body.quantity,
@@ -606,7 +633,7 @@ app.post("/addToCart", jsonParser, (req, res) => {
     if (err) {
       return res.json({
         Status: "Error",
-        Error: "Errer in running sql",
+        Error: err,
       });
     }
     return res.json({ Status: "Success" });
@@ -615,12 +642,12 @@ app.post("/addToCart", jsonParser, (req, res) => {
 
 app.get("/getProductsInCart/:id", (req, res) => {
   const id = req.params.id;
-  const sql = "SELECT * FROM carts WHERE customer_id = ?";
+  const sql = "SELECT * FROM carts WHERE cust_id = ?";
   connection.query(sql, [id], (err, result) => {
     if (err)
       return res.json({
         Status: "Error",
-        Error: "Errer in running sql",
+        Error: err,
       });
     return res.json({ Status: "Success", Result: result });
   });
@@ -634,18 +661,17 @@ app.get("/deleteProductInCart/:id", (req, res) => {
     if (err)
       return res.json({
         Status: "Error",
-        Error: "Errer in running sql",
+        Error: err,
       });
     return res.json({ Status: "Success" });
   });
 });
 
-app.get("/countProduct", (req, res) => {
-  const sql = "SELECT count(id) as products FROM products";
+app.get("/countProductInCart", (req, res) => {
+  const sql = "SELECT count(id) as products FROM carts";
 
   connection.query(sql, (err, result) => {
-    if (err)
-      return res.json({ Status: "Error", Error: "Errer in running sql" });
+    if (err) return res.json({ Status: "Error", Error: err });
     return res.json({ result });
   });
 });
