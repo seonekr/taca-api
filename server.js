@@ -548,6 +548,58 @@ app.get("/allProducts", (req, res) => {
   });
 });
 
+// for list product from new to old onece
+app.get("/newProducts", (req, res) => {
+  const sql = "SELECT * FROM products ORDER BY id DESC";
+  connection.query(sql, (err, result) => {
+    if (err)
+      return res.json({
+        Status: "Error",
+        Error: err,
+      });
+    return res.json({ Status: "Success", Result: result });
+  });
+});
+
+// for list product from higher to lower prices
+app.get("/higherPriceProducts", (req, res) => {
+  const sql = "SELECT * FROM products ORDER BY price DESC";
+  connection.query(sql, (err, result) => {
+    if (err)
+      return res.json({
+        Status: "Error",
+        Error: err,
+      });
+    return res.json({ Status: "Success", Result: result });
+  });
+});
+
+// for list product from lower to higher prices
+app.get("/lowerPriceProducts", (req, res) => {
+  const sql = "SELECT * FROM products ORDER BY price ASC";
+  connection.query(sql, (err, result) => {
+    if (err)
+      return res.json({
+        Status: "Error",
+        Error: err,
+      });
+    return res.json({ Status: "Success", Result: result });
+  });
+});
+
+// for list poppular products
+app.get("/popularProducts", (req, res) => {
+  const sql = "SELECT * FROM products WHERE is_popular = 1";
+  connection.query(sql, (err, result) => {
+    if (err)
+      return res.json({
+        Status: "Error",
+        Error: err,
+      });
+    return res.json({ Status: "Success", Result: result });
+  });
+});
+
 app.get("/getProduct/:id", (req, res) => {
   const id = req.params.id;
   const sql = "SELECT * FROM products WHERE id = ?";
