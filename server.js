@@ -640,9 +640,23 @@ app.post("/addToCart", jsonParser, (req, res) => {
   });
 });
 
-app.get("/getProductsInCart/:id", (req, res) => {
+app.get("/getProductsInCart2/:id", (req, res) => {
   const id = req.params.id;
   const sql = "SELECT * FROM carts WHERE cust_id = ?";
+  connection.query(sql, [id], (err, result) => {
+    if (err)
+      return res.json({
+        Status: "Error",
+        Error: err,
+      });
+    return res.json({ Status: "Success", Result: result });
+  });
+});
+
+app.get("/getProductsInCart/:id", (req, res) => {
+  const id = req.params.id;
+  // const sql = "SELECT * FROM carts WHERE cust_id = ?";
+  const sql = "SELECT c.id, c.cust_id, c.size, c.color, c.quantity, p.name, p.price, p.image FROM carts AS c JOIN products AS p ON p.id = c.prod_id WHERE c.cust_id=?"
   connection.query(sql, [id], (err, result) => {
     if (err)
       return res.json({
