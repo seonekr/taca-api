@@ -659,6 +659,37 @@ app.get("/countProduct", (req, res) => {
   });
 });
 
+// for search products
+app.get("/searchProducts", (req, res) => {
+  const page = parseInt(req.query.page);
+  const per_page = parseInt(req.query.per_page);
+  const sort_column = req.query.sort_column;
+  const sort_direction = req.query.sort_direction;
+  const search = req.query.search;
+
+  const start_idx = (page - 1) * per_page;
+  var params = [];
+  var sql = "SELECT * FROM products";
+  if (search) {
+    sql += " WHERE name LIKE ?";
+    params.push("%" + search + "%");
+  }
+  if (sort_column) {
+    sql += " ORDER BY " + sort_column + " " + sort_direction;
+  }
+  sql += " LIMIT ?, ?";
+  params.push(start_idx);
+  params.push(per_page);
+
+  console.log(sql, params)
+
+  connection.execute(sql, params, function (err, results, fields) {
+    console.log(results);
+    res.json({ results: results });
+    // console.log(fields);
+  });
+});
+
 // ============== Test API ===============
 app.get("/lastUser", (req, res) => {
   const sql = "SELECT * FROM users ORDER BY id DESC LIMIT 1";
@@ -692,23 +723,11 @@ app.post("/addToCart", jsonParser, (req, res) => {
   });
 });
 
-app.get("/getProductsInCart2/:id", (req, res) => {
-  const id = req.params.id;
-  const sql = "SELECT * FROM carts WHERE cust_id = ?";
-  connection.query(sql, [id], (err, result) => {
-    if (err)
-      return res.json({
-        Status: "Error",
-        Error: err,
-      });
-    return res.json({ Status: "Success", Result: result });
-  });
-});
-
 app.get("/getProductsInCart/:id", (req, res) => {
   const id = req.params.id;
   // const sql = "SELECT * FROM carts WHERE cust_id = ?";
-  const sql = "SELECT c.id, c.cust_id, c.size, c.color, c.quantity, p.name, p.price, p.image FROM carts AS c JOIN products AS p ON p.id = c.prod_id WHERE c.cust_id=?"
+  const sql =
+    "SELECT c.id, c.cust_id, c.size, c.color, c.quantity, p.name, p.price, p.image FROM carts AS c JOIN products AS p ON p.id = c.prod_id WHERE c.cust_id=?";
   connection.query(sql, [id], (err, result) => {
     if (err)
       return res.json({
